@@ -146,7 +146,7 @@ function transformRequestBody(
 
     return { body: JSON.stringify(wrappedBody), userPromptId };
   } catch (error) {
-    console.error("Failed to transform Gemini request body:", error);
+    console.error("Failed to transform Gemini request body:");
     return { userPromptId: fallbackId };
   }
 }

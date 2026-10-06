@@ -73,8 +73,7 @@ export function createGeminiQuotaTool({
           quota.buckets,
         );
       } catch (error) {
-        const message = error instanceof Error ? error.message : "unknown error";
-        return `Gemini quota lookup failed: ${message}`;
+        return "Gemini quota lookup failed. Check the active connection and project access.";
       }
     },
   };

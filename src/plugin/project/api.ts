@@ -61,7 +61,7 @@ export async function loadManagedProject(
     }
     return (await response.json()) as LoadCodeAssistPayload;
   } catch (error) {
-    console.error("Failed to load Gemini managed project:", error);
+    console.error("Failed to load Gemini managed project:");
     return null;
   }
 }
@@ -133,7 +133,7 @@ export async function onboardManagedProject(
       return projectId;
     }
   } catch (error) {
-    console.error("Failed to onboard Gemini managed project:", error);
+    console.error("Failed to onboard Gemini managed project:");
     return undefined;
   }
 

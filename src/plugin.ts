@@ -272,7 +272,7 @@ async function ensureProjectContextOrThrow(
     return await ensureProjectContext(authRecord, client, configuredProjectId, userAgentModel);
   } catch (error) {
     if (error instanceof Error) {
-      console.error(error.message);
+      console.error("Gemini project resolution failed");
     }
     throw error;
   }
