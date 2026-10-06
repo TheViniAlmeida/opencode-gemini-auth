@@ -1,13 +1,12 @@
 import {
   GEMINI_CLIENT_ID,
-  GEMINI_CLIENT_SECRET,
+  getGeminiClientSecret,
   GEMINI_PROVIDER_ID,
 } from "../constants";
 import { geminiFetch } from "../fetch";
 import { formatRefreshParts, parseRefreshParts } from "./auth";
 import { clearCachedAuth, storeCachedAuth } from "./cache";
 import {
-  formatDebugBodyPreview,
   isGeminiDebugEnabled,
   logGeminiDebugMessage,
 } from "./debug";
@@ -22,57 +21,7 @@ import {
 } from "./retry/helpers";
 import type { OAuthAuthDetails, PluginClient, RefreshParts } from "./types";
 
-interface OAuthErrorPayload {
-  error?:
-    | string
-    | {
-        code?: string;
-        status?: string;
-        message?: string;
-      };
-  error_description?: string;
-}
-
 const refreshInFlight = new Map<string, Promise<OAuthAuthDetails | undefined>>();
-
-/**
- * Parses OAuth error payloads returned by Google token endpoints, tolerating varied shapes.
- */
-function parseOAuthErrorPayload(text: string | undefined): { code?: string; description?: string } {
-  if (!text) {
-    return {};
-  }
-
-  try {
-    const payload = JSON.parse(text) as OAuthErrorPayload;
-    if (!payload || typeof payload !== "object") {
-      return { description: text };
-    }
-
-    let code: string | undefined;
-    if (typeof payload.error === "string") {
-      code = payload.error;
-    } else if (payload.error && typeof payload.error === "object") {
-      code = payload.error.status ?? payload.error.code;
-      if (!payload.error_description && payload.error.message) {
-        return { code, description: payload.error.message };
-      }
-    }
-
-    const description = payload.error_description;
-    if (description) {
-      return { code, description };
-    }
-
-    if (payload.error && typeof payload.error === "object" && payload.error.message) {
-      return { code, description: payload.error.message };
-    }
-
-    return { code };
-  } catch {
-    return { description: text };
-  }
-}
 
 /**
  * Refreshes a Gemini OAuth access token, updates persisted credentials, and handles revocation.
@@ -85,6 +34,7 @@ export async function refreshAccessToken(
   if (!parts.refreshToken) {
     return undefined;
   }
+  getGeminiClientSecret();
 
   const pending = refreshInFlight.get(parts.refreshToken);
   if (pending) {
@@ -110,26 +60,19 @@ async function refreshAccessTokenInternal(
     const response = await fetchTokenRefresh(parts.refreshToken);
 
     if (!response.ok) {
-      let errorText: string | undefined;
+      // Only the OAuth error code is needed to detect a revoked grant.
+      // Descriptions and raw bodies may contain credentials or personal data.
+      let code: string | undefined;
       try {
-        errorText = await response.text();
+        const payload = (await response.json()) as { error?: unknown };
+        if (typeof payload.error === "string") code = payload.error;
       } catch {
-        errorText = undefined;
+        // An invalid error body is still reported by HTTP status.
       }
       if (isGeminiDebugEnabled()) {
-        logGeminiDebugMessage(
-          `OAuth refresh response: ${response.status} ${response.statusText}`,
-        );
-        const preview = formatDebugBodyPreview(errorText);
-        if (preview) {
-          logGeminiDebugMessage(`OAuth refresh error body: ${preview}`);
-        }
+        logGeminiDebugMessage(`OAuth refresh response: ${response.status}`);
       }
-
-      const { code, description } = parseOAuthErrorPayload(errorText);
-      const details = [code, description ?? errorText].filter(Boolean).join(": ");
-      const baseMessage = `Gemini token refresh failed (${response.status} ${response.statusText})`;
-      console.warn(`[Gemini OAuth] ${details ? `${baseMessage} - ${details}` : baseMessage}`);
+      console.warn(`[Gemini OAuth] Token refresh failed (${response.status})`);
 
       if (code === "invalid_grant") {
         console.warn(
@@ -150,8 +93,8 @@ async function refreshAccessTokenInternal(
             path: { id: GEMINI_PROVIDER_ID },
             body: clearedAuth,
           });
-        } catch (storeError) {
-          console.error("Failed to clear stored Gemini OAuth credentials:", storeError);
+        } catch {
+          console.error("Failed to clear stored Gemini OAuth credentials");
         }
       }
 
@@ -193,14 +136,14 @@ async function refreshAccessTokenInternal(
           path: { id: GEMINI_PROVIDER_ID },
           body: updatedAuth,
         });
-      } catch (storeError) {
-        console.error("Failed to persist refreshed Gemini OAuth credentials:", storeError);
+      } catch {
+        console.error("Failed to persist refreshed Gemini OAuth credentials");
       }
     }
 
     return updatedAuth;
-  } catch (error) {
-    console.error("Failed to refresh Gemini access token due to an unexpected error:", error);
+  } catch {
+    console.error("Failed to refresh Gemini access token due to an unexpected error");
     return undefined;
   }
 }
@@ -216,7 +159,7 @@ async function fetchTokenRefresh(refreshToken: string): Promise<Response> {
       grant_type: "refresh_token",
       refresh_token: refreshToken,
       client_id: GEMINI_CLIENT_ID,
-      client_secret: GEMINI_CLIENT_SECRET,
+      client_secret: getGeminiClientSecret(),
     }),
   };
 

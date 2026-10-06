@@ -63,17 +63,25 @@ OpenCode V2:
 
 ### OpenCode V2 Compatibility
 
-OpenCode V2 loads the package's native `./server` entrypoint. It registers the
+OpenCode V2 loads the package's root `server.js` entrypoint. It registers the
 Gemini CLI OAuth method through `integration.transform` and rewrites Google
 provider requests and responses through provider-scoped V2 session HTTP hooks.
-The entrypoint targets OpenCode 2.0.14 and uses `Plugin.define` from
-`@opencode/plugin@2.0.14`. Project settings are read through `ctx.provider.get`.
+The entrypoint targets OpenCode 2.0.22 and uses `Plugin.define` from
+`@opencode/plugin@2.0.22`. Project settings are read through `ctx.provider.get`.
 Provider lookup failures are reported instead of silently selecting another
 Google Cloud project.
 
 The V1 entrypoint remains unchanged. The V2 entrypoint currently covers login
 and model requests; the `/gquota` command, quota tool, retry transport, and TUI
 capacity notifications remain V1-only.
+
+### OAuth client secret
+
+The plugin does not bundle the installed-app client configuration. It reads
+matching public client configuration from the installed Gemini CLI at runtime,
+without executing its source. `OPENCODE_GEMINI_OAUTH_CLIENT_SECRET` can override
+that value when needed. This lookup never reads user access or refresh tokens
+from the CLI; keep authentication values out of logs and command arguments.
 
 ## Usage
 
@@ -325,7 +333,8 @@ OPENCODE_GEMINI_DEBUG=1 opencode
 ```
 
 This will generate `gemini-debug-<timestamp>.log` files in your working
-directory containing sanitized request/response details.
+directory containing request method, response status and timing only. Logs are
+created with file permissions `0600`.
 
 ## Parity Notes
 
@@ -376,7 +385,7 @@ To develop on this plugin locally:
 1. **Clone**:
 
    ```bash
-   git clone https://github.com/jenslys/opencode-gemini-auth.git
+   git clone https://github.com/TheViniAlmeida/opencode-gemini-auth.git
    cd opencode-gemini-auth
    bun install
    ```

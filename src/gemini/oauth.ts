@@ -3,12 +3,11 @@ import { randomBytes } from "node:crypto";
 
 import {
   GEMINI_CLIENT_ID,
-  GEMINI_CLIENT_SECRET,
+  getGeminiClientSecret,
   GEMINI_REDIRECT_URI,
   GEMINI_SCOPES,
 } from "../constants";
 import {
-  formatDebugBodyPreview,
   isGeminiDebugEnabled,
   logGeminiDebugMessage,
 } from "../plugin/debug";
@@ -92,10 +91,10 @@ export async function exchangeGeminiWithVerifier(
   try {
     return await exchangeGeminiWithVerifierInternal(code, verifier);
   } catch (error) {
-    return {
-      type: "failed",
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
+    if (error instanceof Error && error.message.includes("OPENCODE_GEMINI_OAUTH_CLIENT_SECRET")) {
+      return { type: "failed", error: error.message };
+    }
+    return { type: "failed", error: "Gemini OAuth exchange failed" };
   }
 }
 
@@ -113,7 +112,7 @@ async function exchangeGeminiWithVerifierInternal(
     },
     body: new URLSearchParams({
       client_id: GEMINI_CLIENT_ID,
-      client_secret: GEMINI_CLIENT_SECRET,
+      client_secret: getGeminiClientSecret(),
       code,
       grant_type: "authorization_code",
       redirect_uri: GEMINI_REDIRECT_URI,
@@ -122,17 +121,21 @@ async function exchangeGeminiWithVerifierInternal(
   });
 
   if (!tokenResponse.ok) {
-    const errorText = await tokenResponse.text();
     if (isGeminiDebugEnabled()) {
-      logGeminiDebugMessage(
-        `OAuth exchange response: ${tokenResponse.status} ${tokenResponse.statusText}`,
-      );
-      const preview = formatDebugBodyPreview(errorText);
-      if (preview) {
-        logGeminiDebugMessage(`OAuth exchange error body: ${preview}`);
-      }
+      logGeminiDebugMessage(`OAuth exchange response: ${tokenResponse.status}`);
     }
-    return { type: "failed", error: errorText };
+    // Preserve the listener's malformed-code retry without exposing Google's body.
+    try {
+      const payload = (await tokenResponse.json()) as { error?: unknown; error_description?: unknown };
+      if (payload.error === "invalid_grant" &&
+          typeof payload.error_description === "string" &&
+          /malformed auth code/i.test(payload.error_description)) {
+        return { type: "failed", error: "invalid_grant: malformed auth code" };
+      }
+    } catch {
+      // Keep the HTTP status as the only public error detail.
+    }
+    return { type: "failed", error: `Gemini OAuth exchange failed (${tokenResponse.status})` };
   }
 
   const tokenPayload = (await tokenResponse.json()) as GeminiTokenResponse;

@@ -3,7 +3,7 @@ import type { Plugin } from "@opencode/plugin";
 
 import plugin, { setupV2 } from "./plugin-v2";
 
-const projectEnvKeys = ["OPENCODE_GEMINI_PROJECT_ID", "GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT_ID"];
+const projectEnvKeys = ["OPENCODE_GEMINI_OAUTH_CLIENT_SECRET", "OPENCODE_GEMINI_PROJECT_ID", "GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT_ID"];
 const savedEnv = new Map(projectEnvKeys.map((key) => [key, process.env[key]]));
 
 beforeEach(() => {
@@ -178,3 +178,40 @@ test.each(["GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT_ID"])(
     expect(await event.request.json()).toMatchObject({ project: "ambient-project" });
   },
 );
+
+
+test("V2 OAuth authorization returns a credential with the existing method ID", async () => {
+  process.env.OPENCODE_HEADLESS = "1";
+  process.env.OPENCODE_GEMINI_OAUTH_CLIENT_SECRET = "test-only-secret";
+  const fetchMock = spyOn(globalThis, "fetch").mockImplementation((async (input) => {
+    const url = String(input);
+    if (url.includes("oauth2.googleapis.com/token")) {
+      return Response.json({ access_token: "test-access", refresh_token: "test-refresh", expires_in: 3600 });
+    }
+    if (url.includes("userinfo")) return Response.json({ email: "test@example.invalid" });
+    return Response.json({ currentTier: { id: "standard-tier" } });
+  }) as typeof fetch);
+  try {
+    const { method } = await setup();
+    const authorization = await method.authorize();
+    expect(authorization.mode).toBe("code");
+    const credential = await authorization.callback("test-authorization-code");
+    expect(credential).toMatchObject({
+      type: "oauth", methodID: "gemini-cli", access: "test-access", metadata: { email: "test@example.invalid" },
+    });
+    expect(fetchMock).toHaveBeenCalled();
+  } finally {
+    delete process.env.OPENCODE_HEADLESS;
+  }
+});
+
+test("V2 registered refresh rotates a credential without V1 persistence", async () => {
+  process.env.OPENCODE_GEMINI_OAUTH_CLIENT_SECRET = "test-only-secret";
+  const { method, credential } = await setup();
+  const fetchMock = spyOn(globalThis, "fetch").mockResolvedValue(
+    Response.json({ access_token: "new-access", refresh_token: "new-refresh", expires_in: 3600 }),
+  );
+  const updated = await method.refresh(credential);
+  expect(updated).toMatchObject({ type: "oauth", methodID: "gemini-cli", access: "new-access", refresh: "new-refresh||managed-project" });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});

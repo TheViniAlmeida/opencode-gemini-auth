@@ -5,6 +5,7 @@ import { refreshAccessToken } from "./token";
 import type { OAuthAuthDetails, PluginClient } from "./types";
 
 const originalSetTimeout = globalThis.setTimeout;
+const originalClientSecret = process.env.OPENCODE_GEMINI_OAUTH_CLIENT_SECRET;
 
 const baseAuth: OAuthAuthDetails = {
   type: "oauth",
@@ -25,6 +26,7 @@ function createClient() {
 
 describe("refreshAccessToken", () => {
   beforeEach(() => {
+    process.env.OPENCODE_GEMINI_OAUTH_CLIENT_SECRET = "test-only-secret";
     mock.restore();
     (globalThis as { setTimeout: typeof setTimeout }).setTimeout = ((fn: (...args: any[]) => void) => {
       fn();
@@ -33,6 +35,8 @@ describe("refreshAccessToken", () => {
   });
 
   afterEach(() => {
+    if (originalClientSecret === undefined) delete process.env.OPENCODE_GEMINI_OAUTH_CLIENT_SECRET;
+    else process.env.OPENCODE_GEMINI_OAUTH_CLIENT_SECRET = originalClientSecret;
     (globalThis as { setTimeout: typeof setTimeout }).setTimeout = originalSetTimeout;
   });
 

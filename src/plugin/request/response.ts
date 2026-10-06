@@ -94,7 +94,7 @@ export async function transformGeminiResponse(
       error,
       note: "Failed to transform Gemini response",
     });
-    console.error("Failed to transform Gemini response:", error);
+    console.error("Failed to transform Gemini response:");
     return response;
   }
 }

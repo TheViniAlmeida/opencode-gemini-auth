@@ -50,7 +50,7 @@ export function createOAuthAuthorizeMethod(options?: {
 
         if (projectContext.auth.refresh !== result.refresh && isGeminiDebugEnabled()) {
           logGeminiDebugMessage(
-            `OAuth project resolved during auth: ${projectContext.effectiveProjectId || "none"}`,
+            "OAuth project resolved during auth",
           );
         }
         return projectContext.auth.refresh !== result.refresh
@@ -58,8 +58,7 @@ export function createOAuthAuthorizeMethod(options?: {
           : result;
       } catch (error) {
         if (isGeminiDebugEnabled()) {
-          const message = error instanceof Error ? error.message : String(error);
-          console.warn(`[Gemini OAuth] Project resolution skipped: ${message}`);
+          console.warn("[Gemini OAuth] Project resolution skipped");
         }
         return result;
       }
@@ -76,10 +75,9 @@ export function createOAuthAuthorizeMethod(options?: {
     if (!isHeadless) {
       try {
         listener = await startOAuthListener();
-      } catch (error) {
-        const detail = error instanceof Error ? ` (${error.message})` : "";
+      } catch {
         console.log(
-          `Warning: Couldn't start the local callback listener${detail}. You'll need to paste the callback URL or authorization code.`,
+          "Warning: Couldn't start the local callback listener. You'll need to paste the callback URL or authorization code.",
         );
       }
     } else {
@@ -104,11 +102,10 @@ export function createOAuthAuthorizeMethod(options?: {
             while (true) {
               const callbackUrl = await listener.waitForCallback();
               const callbackError = callbackUrl.searchParams.get("error");
-              const callbackErrorDescription = callbackUrl.searchParams.get("error_description");
               if (callbackError) {
                 return {
                   type: "failed",
-                  error: callbackErrorDescription || callbackError,
+                  error: "Google OAuth authorization was declined or failed",
                 };
               }
 
@@ -133,10 +130,10 @@ export function createOAuthAuthorizeMethod(options?: {
               }
               return await maybeHydrateProjectId(exchangeResult);
             }
-          } catch (error) {
+          } catch {
             return {
               type: "failed",
-              error: error instanceof Error ? error.message : "Unknown error",
+              error: "Gemini OAuth callback failed",
             };
           } finally {
             try {
@@ -164,11 +161,8 @@ export function createOAuthAuthorizeMethod(options?: {
           return await maybeHydrateProjectId(
             await exchangeGeminiWithVerifier(code, authorization.verifier),
           );
-        } catch (error) {
-          return {
-            type: "failed",
-            error: error instanceof Error ? error.message : "Unknown error",
-          };
+        } catch {
+          return { type: "failed", error: "Gemini OAuth callback failed" };
         }
       },
     };

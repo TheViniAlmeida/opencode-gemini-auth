@@ -1,8 +1,8 @@
 {
   "name": "opencode-gemini-auth",
   "version": "2.0.1",
-  "author": "jenslys",
-  "repository": "https://github.com/jenslys/opencode-gemini-auth",
+  "author": "TheViniAlmeida",
+  "repository": "https://github.com/TheViniAlmeida/opencode-gemini-auth",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,11 +14,12 @@
     },
     "./server": {
       "types": "./dist/server.d.ts",
-      "import": "./dist/server.js",
-      "default": "./dist/server.js"
+      "import": "./server.js",
+      "default": "./server.js"
     }
   },
   "files": [
+    "server.js",
     "dist",
     "README.md",
     "LICENSE"
@@ -40,7 +41,11 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@opencode/plugin": "2.0.14",
+    "@opencode/plugin": "2.0.22",
     "@openauthjs/openauth": "^0.4.3"
+  },
+  "homepage": "https://github.com/TheViniAlmeida/opencode-gemini-auth#readme",
+  "bugs": {
+    "url": "https://github.com/TheViniAlmeida/opencode-gemini-auth/issues"
   }
 }
